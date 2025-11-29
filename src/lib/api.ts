@@ -351,6 +351,47 @@ export const memoryApi = {
       body: JSON.stringify({ query, workspaceId, top_k: topK }),
     });
   },
+
+  importFromUrl: async (workspaceId: string, url: string, summarize: boolean = true): Promise<{
+    memory: MemoryResponse;
+    source_type: string;
+    was_summarized: boolean;
+  }> => {
+    return apiRequest(`/workspaces/${workspaceId}/memories/import-url`, {
+      method: 'POST',
+      body: JSON.stringify({ url, summarize }),
+    });
+  },
+
+  importFromFile: async (workspaceId: string, file: File, summarize: boolean = false): Promise<{
+    memory: MemoryResponse;
+    file_type: string;
+    original_filename: string;
+    was_summarized: boolean;
+  }> => {
+    const token = localStorage.getItem('auth_token');
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('summarize', summarize.toString());
+
+    const response = await fetch(`${API_BASE_URL}/workspaces/${workspaceId}/memories/import-file`, {
+      method: 'POST',
+      headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'Upload failed' }));
+      throw new Error(errorData.error || `HTTP ${response.status}`);
+    }
+
+    const result = await response.json();
+    if (!result.ok) {
+      throw new Error(result.error || 'Upload failed');
+    }
+
+    return result.data;
+  },
 };
 
 // ============================================
