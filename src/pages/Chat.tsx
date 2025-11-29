@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Send, ArrowLeft, Database, Zap } from 'lucide-react';
 import { useChatStore } from '../stores/chatStore';
 import { useMemoryStore } from '../stores/memoryStore';
@@ -9,6 +9,7 @@ import { ChatMessage } from '../components/features/ChatMessage';
 import { CyberButton } from '../components/ui/CyberButton';
 import { CyberCard } from '../components/ui/CyberCard';
 import { SynapseSpark } from '../components/animations/SynapseSpark';
+import { MemoryInjectionAnimation } from '../components/animations/MemoryInjectionAnimation';
 
 const Chat: React.FC = () => {
   const { conversationId } = useParams<{ conversationId: string }>();
@@ -16,6 +17,7 @@ const Chat: React.FC = () => {
   
   const [messageInput, setMessageInput] = useState('');
   const [sparkTrigger, setSparkTrigger] = useState<string | null>(null);
+  const [injectingMemory, setInjectingMemory] = useState<{ id: string; title: string } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const {
@@ -94,20 +96,40 @@ const Chat: React.FC = () => {
 
   const handleInjectMemory = useCallback((memoryId: string) => {
     if (conversationId) {
-      injectMemory(conversationId, memoryId);
-      setSparkTrigger(memoryId);
-      setTimeout(() => setSparkTrigger(null), 100);
+      const memory = getMemoryById(memoryId);
+      if (memory) {
+        // Show injection animation
+        setInjectingMemory({ id: memoryId, title: memory.title });
+        
+        // Inject memory after a short delay
+        setTimeout(() => {
+          injectMemory(conversationId, memoryId);
+          setSparkTrigger(memoryId);
+          setTimeout(() => setSparkTrigger(null), 100);
+        }, 300);
+      }
     }
-  }, [conversationId, injectMemory]);
+  }, [conversationId, injectMemory, getMemoryById]);
 
   const isMemoryInjected = useCallback((memoryId: string) => {
     return conversation?.injectedMemories.includes(memoryId) || false;
   }, [conversation?.injectedMemories]);
 
   return (
-    <div className="flex h-full">
-      {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col">
+    <>
+      {/* Memory Injection Animation Overlay */}
+      <AnimatePresence>
+        {injectingMemory && (
+          <MemoryInjectionAnimation
+            memoryTitle={injectingMemory.title}
+            onComplete={() => setInjectingMemory(null)}
+          />
+        )}
+      </AnimatePresence>
+
+      <div className="flex h-full">
+        {/* Main Chat Area */}
+        <div className="flex-1 flex flex-col">
         {/* Conversation Header */}
         <div className="border-b-2 border-deep-teal bg-black/50 p-4">
           <div className="flex items-center justify-between">
@@ -301,6 +323,7 @@ const Chat: React.FC = () => {
         </div>
       </div>
     </div>
+    </>
   );
 };
 
