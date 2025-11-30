@@ -11,6 +11,9 @@ import {
 import { CyberButton } from '../components/ui/CyberButton';
 import { CyberCard } from '../components/ui/CyberCard';
 import { CyberInput } from '../components/ui/CyberInput';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { Modal } from '../components/ui/Modal';
+import { toast } from '../components/ui/Toast';
 import { useSettingsStore } from '../stores/settingsStore';
 import { useAuthStore } from '../stores/authStore';
 import { useNavigate } from 'react-router-dom';
@@ -44,6 +47,8 @@ const Settings: React.FC = () => {
   const [cleanupInfo, setCleanupInfo] = useState<CleanupInfoResponse | null>(null);
   const [countdown, setCountdown] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
   const [cleaningUp, setCleaningUp] = useState(false);
+  const [showCleanupDialog, setShowCleanupDialog] = useState(false);
+  const [showCleanupResult, setShowCleanupResult] = useState<{ workspaces: number; conversations: number; memories: number; messages: number } | null>(null);
 
   const fetchCleanupInfo = useCallback(async () => {
     try {
@@ -133,15 +138,24 @@ const Settings: React.FC = () => {
     finally { setDeleting(false); }
   };
 
-  const handleManualCleanup = async () => {
-    if (!confirm('This will permanently delete ALL your workspaces, conversations, and memories. Are you sure?')) return;
+  const handleManualCleanup = () => {
+    setShowCleanupDialog(true);
+  };
+
+  const confirmManualCleanup = async () => {
+    setShowCleanupDialog(false);
     setCleaningUp(true);
     try {
       const result = await settingsApi.triggerCleanup();
-      alert(`Cleanup complete!\n\nDeleted:\n- ${result.workspaces_deleted} workspaces\n- ${result.conversations_deleted} conversations\n- ${result.memories_deleted} memories\n- ${result.messages_deleted} messages`);
+      setShowCleanupResult({
+        workspaces: result.workspaces_deleted,
+        conversations: result.conversations_deleted,
+        memories: result.memories_deleted,
+        messages: result.messages_deleted,
+      });
       fetchCleanupInfo();
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : 'Failed to cleanup data');
+      toast.error('Cleanup Failed', err instanceof Error ? err.message : 'Failed to cleanup data');
     } finally { setCleaningUp(false); }
   };
 
@@ -156,8 +170,51 @@ const Settings: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-black text-white p-8 relative">
-      <div className="absolute inset-0 opacity-5 pointer-events-none">
+    <>
+      {/* Cleanup Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={showCleanupDialog}
+        onClose={() => setShowCleanupDialog(false)}
+        onConfirm={confirmManualCleanup}
+        title="Cleanup All Data"
+        message="This will permanently delete ALL your workspaces, conversations, and memories.\n\nThis action cannot be undone. Are you sure?"
+        confirmText="Delete All"
+        variant="danger"
+      />
+
+      {/* Cleanup Result Modal */}
+      <Modal
+        isOpen={!!showCleanupResult}
+        onClose={() => setShowCleanupResult(null)}
+        title="Cleanup Complete"
+        size="sm"
+      >
+        <div className="text-center">
+          <div className="text-neon-green text-4xl mb-4">✓</div>
+          <p className="text-gray-300 mb-4">Successfully deleted:</p>
+          <div className="space-y-2 text-sm font-mono">
+            <div className="flex justify-between px-4 py-2 bg-deep-teal/20 rounded">
+              <span className="text-gray-400">Workspaces</span>
+              <span className="text-neon-green">{showCleanupResult?.workspaces}</span>
+            </div>
+            <div className="flex justify-between px-4 py-2 bg-deep-teal/20 rounded">
+              <span className="text-gray-400">Conversations</span>
+              <span className="text-neon-green">{showCleanupResult?.conversations}</span>
+            </div>
+            <div className="flex justify-between px-4 py-2 bg-deep-teal/20 rounded">
+              <span className="text-gray-400">Memories</span>
+              <span className="text-neon-green">{showCleanupResult?.memories}</span>
+            </div>
+            <div className="flex justify-between px-4 py-2 bg-deep-teal/20 rounded">
+              <span className="text-gray-400">Messages</span>
+              <span className="text-neon-green">{showCleanupResult?.messages}</span>
+            </div>
+          </div>
+        </div>
+      </Modal>
+
+      <div className="min-h-screen bg-black text-white p-8 relative">
+        <div className="absolute inset-0 opacity-5 pointer-events-none">
         <div className="absolute top-20 right-10 w-64 h-64 bg-neon-green rounded-full blur-3xl"></div>
         <div className="absolute bottom-20 left-10 w-96 h-96 bg-neon-green rounded-full blur-3xl"></div>
       </div>
@@ -284,7 +341,8 @@ const Settings: React.FC = () => {
           </div>
         </div>
       </div>
-    </div>
+      </div>
+    </>
   );
 };
 

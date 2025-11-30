@@ -7,6 +7,7 @@ interface ChatState {
   activeConversationId: string | null;
   autoStore: boolean;
   isLoading: boolean;
+  isSending: boolean; // Track if a message is being sent
   
   // Actions
   loadConversations: (workspaceId: string) => Promise<void>;
@@ -38,6 +39,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   activeConversationId: null,
   autoStore: true,
   isLoading: false,
+  isSending: false,
 
   loadConversations: async (workspaceId: string) => {
     set({ isLoading: true });
@@ -140,6 +142,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   loadConversationMessages: async (conversationId: string) => {
+    // Skip loading if currently sending a message to prevent race conditions
+    if (get().isSending) {
+      return;
+    }
+    
     try {
       const response = await conversationApi.get(conversationId);
       const newMessages = response.messages.map(msg => ({
@@ -148,6 +155,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
       }));
       
       set(state => {
+        // Double-check isSending in case it changed during the API call
+        if (state.isSending) {
+          return state;
+        }
+        
         const existingConv = state.conversations.find(c => c.id === conversationId);
         
         // Skip update if messages haven't changed (compare by length and last message id)
@@ -181,6 +193,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   sendMessage: async (conversationId: string, content: string, getAiResponse: boolean = true) => {
+    // Set sending flag to prevent polling interference
+    set({ isSending: true });
+    
     // Optimistically add user message immediately
     const tempUserMessage: Message = {
       id: `temp-user-${Date.now()}`,
@@ -240,6 +255,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       
       // Replace temp messages with real ones
       set(state => ({
+        isSending: false,
         conversations: state.conversations.map(conv => {
           if (conv.id === conversationId) {
             // Remove temp messages and add real ones
@@ -256,8 +272,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
         }),
       }));
     } catch (error) {
-      // Remove temp messages on error
+      // Remove temp messages on error and reset sending flag
       set(state => ({
+        isSending: false,
         conversations: state.conversations.map(conv => {
           if (conv.id === conversationId) {
             return {

@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { UserPlus, Trash2, Shield, Eye, User, Circle } from 'lucide-react';
 import { CyberButton } from '../components/ui/CyberButton';
 import { CyberCard } from '../components/ui/CyberCard';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { toast } from '../components/ui/Toast';
 import { useWorkspaceStore } from '../stores/workspaceStore';
 import { useAuthStore } from '../stores/authStore';
 import { teamApi } from '../lib/api';
@@ -134,6 +136,7 @@ const Team: React.FC = () => {
 
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [inviteSuccess, setInviteSuccess] = useState(false);
+  const [removeMemberId, setRemoveMemberId] = useState<string | null>(null);
 
   const handleInvite = async () => {
     if (!activeWorkspaceId || !inviteEmail) return;
@@ -154,24 +157,40 @@ const Team: React.FC = () => {
 
 
 
-  const handleRemoveMember = async (userId: string) => {
-    if (!activeWorkspaceId) return;
+  const handleRemoveMember = (userId: string) => {
+    setRemoveMemberId(userId);
+  };
+
+  const confirmRemoveMember = async () => {
+    if (!activeWorkspaceId || !removeMemberId) return;
     
-    if (confirm('Are you sure you want to remove this team member?')) {
-      try {
-        await teamApi.remove(activeWorkspaceId, userId);
-        // Refresh team members
-        const response = await teamApi.list(activeWorkspaceId);
-        setTeamMembers(response.members || []);
-      } catch (error: any) {
-        alert(error.message || 'Failed to remove member');
-      }
+    try {
+      await teamApi.remove(activeWorkspaceId, removeMemberId);
+      // Refresh team members
+      const response = await teamApi.list(activeWorkspaceId);
+      setTeamMembers(response.members || []);
+      setRemoveMemberId(null);
+    } catch (error: any) {
+      toast.error('Failed to remove member', error.message || 'Please try again.');
+      setRemoveMemberId(null);
     }
   };
 
   return (
-    <div className="min-h-screen bg-black text-white p-8 relative">
-      {/* Holographic silhouette background effects */}
+    <>
+      {/* Remove Member Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={!!removeMemberId}
+        onClose={() => setRemoveMemberId(null)}
+        onConfirm={confirmRemoveMember}
+        title="Remove Team Member"
+        message="Are you sure you want to remove this team member? They will lose access to this workspace."
+        confirmText="Remove"
+        variant="danger"
+      />
+
+      <div className="min-h-screen bg-black text-white p-8 relative">
+        {/* Holographic silhouette background effects */}
       <div className="absolute inset-0 opacity-5 pointer-events-none">
         <div className="absolute top-20 left-10 w-64 h-64 bg-neon-green rounded-full blur-3xl"></div>
         <div className="absolute bottom-20 right-10 w-96 h-96 bg-neon-green rounded-full blur-3xl"></div>
@@ -435,7 +454,8 @@ const Team: React.FC = () => {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 };
 

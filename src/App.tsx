@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { CyberSpinner } from './components/ui';
+import { ToastContainer } from './components/ui/Toast';
 // Import AppShell and ProtectedRoute directly (not lazy) to prevent shell from unmounting
 import AppShell from './pages/AppShell';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -38,6 +39,7 @@ const PageLoader = () => (
 function App() {
   return (
     <BrowserRouter>
+      <ToastContainer />
       <Suspense fallback={<PageLoader />}>
         <Routes>
           {/* Public Routes */}

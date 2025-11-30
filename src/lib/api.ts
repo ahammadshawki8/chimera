@@ -39,7 +39,20 @@ async function apiRequest<T>(
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({ error: 'Request failed' }));
-    throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+    // Handle error which could be a string or an object
+    let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+    if (errorData.error) {
+      if (typeof errorData.error === 'string') {
+        errorMessage = errorData.error;
+      } else if (typeof errorData.error === 'object') {
+        // Handle validation errors object from serializers
+        const errors = Object.entries(errorData.error)
+          .map(([field, msgs]) => `${field}: ${Array.isArray(msgs) ? msgs.join(', ') : msgs}`)
+          .join('; ');
+        errorMessage = errors || 'Validation failed';
+      }
+    }
+    throw new Error(errorMessage);
   }
 
   const result: ApiResponse<T> = await response.json();

@@ -116,6 +116,9 @@ const BrainVisualization = ({ models, onModelSelect }: BrainVisualizationProps) 
 
     // Mouse interaction for canvas only
     const onCanvasMouseDown = (event: MouseEvent) => {
+      // Only start drag if clicking directly on canvas (not on labels)
+      if (event.target !== renderer.domElement) return;
+      
       mouseState.current.isDragging = true;
       mouseState.current.previousX = event.clientX;
       mouseState.current.previousY = event.clientY;
@@ -247,25 +250,29 @@ const BrainVisualization = ({ models, onModelSelect }: BrainVisualizationProps) 
     };
   }, [models]); // Removed hoveredModel dependency to prevent reset
 
-  // Prepare label data
+  // Prepare label data with fixed positions to avoid overlap
   const labelColors = ['#10b981', '#14b8a6', '#06b6d4']; // Green, Teal, Cyan
   
+  // Fixed label positions around the sphere to prevent overlap
+  const labelPositions = [
+    { offsetX: 80, offsetY: -60 },   // Top right
+    { offsetX: -180, offsetY: 0 },   // Left
+    { offsetX: 80, offsetY: 60 },    // Bottom right
+    { offsetX: -180, offsetY: -60 }, // Top left
+    { offsetX: 80, offsetY: 0 },     // Right
+    { offsetX: -180, offsetY: 60 },  // Bottom left
+  ];
+  
   const modelLabels = models.map((model, index) => {
-    let offsetClass = '';
-    if (model.position.x < -0.5) {
-      offsetClass = '-translate-x-full -translate-y-1/2';
-    } else if (model.position.x > 0.5) {
-      offsetClass = 'translate-x-0 -translate-y-1/2';
-    } else {
-      offsetClass = '-translate-x-1/2 -translate-y-full';
-    }
-
+    const pos = labelPositions[index % labelPositions.length];
+    
     return {
       id: model.id,
       displayName: model.displayName,
       brainRegion: model.brainRegion,
       color: labelColors[index % labelColors.length],
-      offsetClass
+      offsetX: pos.offsetX,
+      offsetY: pos.offsetY
     };
   });
 
@@ -274,21 +281,33 @@ const BrainVisualization = ({ models, onModelSelect }: BrainVisualizationProps) 
       {/* 3D Canvas Container */}
       <div ref={containerRef} className="absolute inset-0" />
 
-      {/* HTML Label Overlay */}
-      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+      {/* HTML Label Overlay - Fixed positions to avoid overlap */}
+      <div className="absolute inset-0 overflow-hidden" style={{ pointerEvents: 'none' }}>
         {modelLabels.map((label) => (
           <div
             key={label.id}
             ref={el => labelRefs.current[label.id] = el}
-            className="absolute top-0 left-0 pointer-events-auto cursor-pointer transition-all duration-200"
-            onClick={() => onModelSelect(label.id)}
-            onMouseEnter={() => setHoveredModel(label.id)}
-            onMouseLeave={() => setHoveredModel(null)}
+            className="absolute top-0 left-0"
+            style={{
+              marginLeft: `${label.offsetX}px`,
+              marginTop: `${label.offsetY}px`,
+              pointerEvents: 'none',
+            }}
           >
-            <div className={`${label.offsetClass} flex items-center gap-2`}>
-              {/* Connection dot - smaller */}
+            <button
+              type="button"
+              className="flex items-center gap-2 cursor-pointer select-none focus:outline-none"
+              style={{ pointerEvents: 'auto' }}
+              onClick={() => {
+                console.log('Model clicked:', label.id);
+                onModelSelect(label.id);
+              }}
+              onMouseEnter={() => setHoveredModel(label.id)}
+              onMouseLeave={() => setHoveredModel(null)}
+            >
+              {/* Connection dot */}
               <div 
-                className="w-1.5 h-1.5 rounded-full transition-all duration-200"
+                className="w-2 h-2 rounded-full transition-all duration-200"
                 style={{ 
                   backgroundColor: label.color,
                   boxShadow: hoveredModel === label.id 
@@ -297,34 +316,31 @@ const BrainVisualization = ({ models, onModelSelect }: BrainVisualizationProps) 
                 }}
               />
               
-              {/* Label card - clean and modern */}
+              {/* Label card */}
               <div 
                 className={`
-                  backdrop-blur-md rounded-lg px-4 py-2.5 border transition-all duration-200
+                  backdrop-blur-md rounded-lg px-3 py-2 border transition-all duration-200
                   ${hoveredModel === label.id ? 'scale-105' : ''}
                 `}
                 style={{
-                  backgroundColor: 'rgba(0, 0, 0, 0.85)',
-                  borderColor: hoveredModel === label.id ? label.color : 'rgba(255, 255, 255, 0.1)',
+                  backgroundColor: 'rgba(0, 0, 0, 0.9)',
+                  borderColor: hoveredModel === label.id ? label.color : 'rgba(255, 255, 255, 0.15)',
                   boxShadow: hoveredModel === label.id 
                     ? `0 0 20px ${label.color}40, 0 4px 12px rgba(0, 0, 0, 0.5)` 
                     : '0 2px 8px rgba(0, 0, 0, 0.3)'
                 }}
               >
                 <div 
-                  className="font-bold text-sm whitespace-nowrap transition-colors duration-200"
-                  style={{ 
-                    color: hoveredModel === label.id ? label.color : '#ffffff',
-                    opacity: 1
-                  }}
+                  className="font-bold text-sm whitespace-nowrap text-left"
+                  style={{ color: hoveredModel === label.id ? label.color : '#ffffff' }}
                 >
                   {label.displayName}
                 </div>
-                <div className="text-gray-400 text-xs whitespace-nowrap mt-0.5">
+                <div className="text-gray-400 text-xs whitespace-nowrap text-left">
                   {label.brainRegion}
                 </div>
               </div>
-            </div>
+            </button>
           </div>
         ))}
       </div>

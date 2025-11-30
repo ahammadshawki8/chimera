@@ -4,6 +4,7 @@ import { ArrowLeft, Edit, Trash2, Save, X } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { CyberButton } from '../components/ui/CyberButton';
 import { CyberInput } from '../components/ui/CyberInput';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { useMemoryStore } from '../stores/memoryStore';
 
 const MemoryDetail: React.FC = () => {
@@ -17,6 +18,7 @@ const MemoryDetail: React.FC = () => {
   const [editedTitle, setEditedTitle] = useState('');
   const [editedContent, setEditedContent] = useState('');
   const [editedTags, setEditedTags] = useState('');
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   useEffect(() => {
     if (memory) {
@@ -88,20 +90,33 @@ const MemoryDetail: React.FC = () => {
   };
 
   const handleDelete = () => {
+    setShowDeleteDialog(true);
+  };
+
+  const confirmDelete = () => {
     if (!id) return;
-    if (confirm(`Are you sure you want to delete "${memory.title}"? This action cannot be undone.`)) {
-      deleteMemory(id);
-      navigate('/app/memories');
-    }
+    deleteMemory(id);
+    navigate('/app/memories');
   };
 
   const hasEmbedding = memory.embedding && memory.embedding.length > 0;
   const embeddingDimensions = memory.embedding?.length || 0;
 
   return (
-    <div className="min-h-screen bg-black text-white p-8">
-      <div className="mb-8">
-        <button
+    <>
+      <ConfirmDialog
+        isOpen={showDeleteDialog}
+        onClose={() => setShowDeleteDialog(false)}
+        onConfirm={confirmDelete}
+        title="Delete Memory"
+        message={`Are you sure you want to delete "${memory.title}"?\n\nThis action cannot be undone.`}
+        confirmText="Delete"
+        variant="danger"
+      />
+
+      <div className="min-h-screen bg-black text-white p-8">
+        <div className="mb-8">
+          <button
           onClick={() => navigate('/app/memories')}
           className="flex items-center gap-2 text-neon-green hover:text-white transition-colors duration-200 mb-6 group"
         >
@@ -219,7 +234,8 @@ const MemoryDetail: React.FC = () => {
           </motion.div>
         </div>
       </div>
-    </div>
+      </div>
+    </>
   );
 };
 

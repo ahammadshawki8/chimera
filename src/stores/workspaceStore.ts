@@ -50,9 +50,14 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         },
       }));
       
+      // Preserve current active workspace if it still exists, otherwise use first
+      const currentActiveId = get().activeWorkspaceId;
+      const activeStillExists = workspaces.some(ws => ws.id === currentActiveId);
+      
       set({ 
         workspaces,
-        activeWorkspaceId: workspaces[0]?.id || null,
+        // Only set activeWorkspaceId if there isn't one or it no longer exists
+        activeWorkspaceId: activeStillExists ? currentActiveId : (workspaces[0]?.id || null),
         isLoading: false,
       });
     } catch (error) {
@@ -64,8 +69,10 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   setActiveWorkspace: (id: string) => {
     const currentId = get().activeWorkspaceId;
     if (currentId !== id) {
+      // Set the new workspace ID immediately and store the previous one
       set({ 
         previousWorkspaceId: currentId,
+        activeWorkspaceId: id,
         isTransitioning: true, 
         transitionProgress: 0 
       });
@@ -80,7 +87,6 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         if (progress >= 100) {
           clearInterval(interval);
           set({ 
-            activeWorkspaceId: id, 
             isTransitioning: false, 
             transitionProgress: 0,
             previousWorkspaceId: null,

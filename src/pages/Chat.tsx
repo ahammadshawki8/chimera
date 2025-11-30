@@ -9,6 +9,8 @@ import { useAuthStore } from '../stores/authStore';
 import { ChatMessage } from '../components/features/ChatMessage';
 import { CyberButton } from '../components/ui/CyberButton';
 import { CyberCard } from '../components/ui/CyberCard';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { toast } from '../components/ui/Toast';
 import { SynapseSpark } from '../components/animations/SynapseSpark';
 import { MemoryInjectionAnimation } from '../components/animations/MemoryInjectionAnimation';
 import { useMessagePolling } from '../hooks/useRealtime';
@@ -22,6 +24,8 @@ const Chat: React.FC = () => {
   const [injectingMemory, setInjectingMemory] = useState<{ id: string; title: string } | null>(null);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editedTitle, setEditedTitle] = useState('');
+  const [deleteMessageId, setDeleteMessageId] = useState<string | null>(null);
+  const [showCloseDialog, setShowCloseDialog] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const {
@@ -37,9 +41,10 @@ const Chat: React.FC = () => {
     loadConversationMessages,
     closeConversation,
     reopenConversation,
+    isSending,
   } = useChatStore();
 
-  const { getMemoriesByWorkspace, getMemoryById } = useMemoryStore();
+  const { getMemoriesByWorkspace, getMemoryById, loadMemories } = useMemoryStore();
   const { getActiveWorkspace } = useWorkspaceStore();
   const { isAuthenticated } = useAuthStore();
 
@@ -47,8 +52,8 @@ const Chat: React.FC = () => {
   const activeWorkspace = getActiveWorkspace();
   const workspaceMemories = activeWorkspace ? getMemoriesByWorkspace(activeWorkspace.id) : [];
 
-  // Enable real-time message polling for collaborative chat
-  useMessagePolling(conversationId || null, isAuthenticated && conversation?.status === 'active');
+  // Enable real-time message polling for collaborative chat (disabled while sending)
+  useMessagePolling(conversationId || null, isAuthenticated && conversation?.status === 'active' && !isSending);
 
   // Load conversation messages when conversation ID changes
   useEffect(() => {
@@ -57,21 +62,33 @@ const Chat: React.FC = () => {
     }
   }, [conversationId, loadConversationMessages]);
 
-  // Auto-reopen conversation when page is opened if it was completed
-  useEffect(() => {
-    if (conversation && conversation.status !== 'active' && conversationId) {
-      reopenConversation(conversationId).catch(err => {
-        console.error('Failed to reopen conversation:', err);
-      });
-    }
-  }, [conversation?.status, conversationId, reopenConversation]);
+  // Note: Removed auto-reopen - conversations stay completed after closing
+  // Users can manually continue chatting which will reopen the conversation
 
-  // Auto-scroll to bottom when new messages arrive
+  // Track previous message count to only scroll on new messages
+  const prevMessageCountRef = useRef(0);
+  
+  // Auto-scroll to bottom only when new messages are added
   useEffect(() => {
-    if (messagesEndRef.current && typeof messagesEndRef.current.scrollIntoView === 'function') {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    const currentCount = conversation?.messages?.length || 0;
+    const prevCount = prevMessageCountRef.current;
+    
+    // Only scroll if messages were added (not on initial load or updates)
+    if (currentCount > prevCount && prevCount > 0) {
+      if (messagesEndRef.current && typeof messagesEndRef.current.scrollIntoView === 'function') {
+        messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+      }
     }
-  }, [conversation?.messages]);
+    
+    prevMessageCountRef.current = currentCount;
+  }, [conversation?.messages?.length]);
+  
+  // Initial scroll to bottom when conversation loads
+  useEffect(() => {
+    if (conversation?.messages?.length && messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'auto' });
+    }
+  }, [conversationId]);
 
   if (!conversation) {
     return (
@@ -87,19 +104,27 @@ const Chat: React.FC = () => {
   }
 
   // Memoize handlers to prevent unnecessary re-renders
-  const handleSendMessage = useCallback(() => {
+  const handleSendMessage = useCallback(async () => {
     if (messageInput.trim() && conversationId) {
+      // If conversation is completed, reopen it first
+      if (conversation?.status === 'completed') {
+        try {
+          await reopenConversation(conversationId);
+        } catch (err) {
+          console.error('Failed to reopen conversation:', err);
+        }
+      }
       sendMessage(conversationId, messageInput.trim());
       setMessageInput('');
     }
-  }, [messageInput, conversationId, sendMessage]);
+  }, [messageInput, conversationId, sendMessage, conversation?.status, reopenConversation]);
 
   const handleKeyPress = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === 'Enter' && !e.shiftKey && !isSending) {
       e.preventDefault();
       handleSendMessage();
     }
-  }, [handleSendMessage]);
+  }, [handleSendMessage, isSending]);
 
   const handlePinMessage = useCallback((messageId: string) => {
     if (!conversation) return;
@@ -118,10 +143,14 @@ const Chat: React.FC = () => {
 
   const handleDeleteMessage = useCallback((messageId: string) => {
     if (!conversation) return;
-    if (confirm('Are you sure you want to delete this message?')) {
-      deleteMessage(conversation.id, messageId);
-    }
-  }, [conversation, deleteMessage]);
+    setDeleteMessageId(messageId);
+  }, [conversation]);
+
+  const confirmDeleteMessage = useCallback(() => {
+    if (!conversation || !deleteMessageId) return;
+    deleteMessage(conversation.id, deleteMessageId);
+    setDeleteMessageId(null);
+  }, [conversation, deleteMessageId, deleteMessage]);
 
   const handleInjectMemory = useCallback((memoryId: string) => {
     if (conversationId) {
@@ -155,24 +184,52 @@ const Chat: React.FC = () => {
     }
   }, [conversationId, toggleInjectedMemory]);
 
-  const handleCloseConversation = useCallback(async () => {
+  const handleCloseConversation = useCallback(() => {
     if (!conversationId || !activeWorkspace) return;
-    
-    if (confirm('Close this conversation? It will be summarized and saved to memory.')) {
-      try {
-        await closeConversation(conversationId);
-        navigate(`/app/workspace/${activeWorkspace.id}`);
-      } catch (error) {
-        console.error('Failed to close conversation:', error);
-        alert('Failed to close conversation. Please try again.');
-      }
+    setShowCloseDialog(true);
+  }, [conversationId, activeWorkspace]);
+
+  const confirmCloseConversation = useCallback(async () => {
+    if (!conversationId || !activeWorkspace) return;
+    try {
+      await closeConversation(conversationId);
+      // Refresh memories to show the newly created memory from the conversation
+      await loadMemories(activeWorkspace.id);
+      setShowCloseDialog(false);
+      toast.success('Conversation closed', 'Memory created from conversation.');
+      navigate(`/app/workspace/${activeWorkspace.id}`);
+    } catch (error) {
+      console.error('Failed to close conversation:', error);
+      toast.error('Failed to close conversation', 'Please try again.');
     }
-  }, [conversationId, activeWorkspace, closeConversation, navigate]);
+  }, [conversationId, activeWorkspace, closeConversation, loadMemories, navigate]);
 
 
 
   return (
     <>
+      {/* Delete Message Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={!!deleteMessageId}
+        onClose={() => setDeleteMessageId(null)}
+        onConfirm={confirmDeleteMessage}
+        title="Delete Message"
+        message="Are you sure you want to delete this message?"
+        confirmText="Delete"
+        variant="danger"
+      />
+
+      {/* Close Conversation Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={showCloseDialog}
+        onClose={() => setShowCloseDialog(false)}
+        onConfirm={confirmCloseConversation}
+        title="Close Conversation"
+        message="Close this conversation? It will be summarized and saved to memory."
+        confirmText="Close"
+        variant="warning"
+      />
+
       {/* Memory Injection Animation Overlay */}
       <AnimatePresence>
         {injectingMemory && (
@@ -276,33 +333,35 @@ const Chat: React.FC = () => {
         </div>
 
         {/* Messages Area */}
-        <div className="flex-1 overflow-y-auto p-6 bg-black/30 scanlines min-h-0">
-          {conversation.messages.length === 0 ? (
-            <div className="flex items-center justify-center h-full">
-              <div className="text-center">
-                <Zap className="w-16 h-16 text-neon-green mx-auto mb-4 animate-pulse-glow" />
-                <p className="text-gray-400 text-lg">
-                  Start a conversation with the cognitive model
-                </p>
-                <p className="text-gray-600 text-sm mt-2">
-                  Injected memories will be available in the context
-                </p>
+        <div className="flex-1 min-h-0 bg-black/30 scanlines">
+          <div className="h-full overflow-y-auto p-6" style={{ scrollbarGutter: 'stable' }}>
+            {conversation.messages.length === 0 ? (
+              <div className="flex items-center justify-center h-full">
+                <div className="text-center">
+                  <Zap className="w-16 h-16 text-neon-green mx-auto mb-4 animate-pulse-glow" />
+                  <p className="text-gray-400 text-lg">
+                    Start a conversation with the cognitive model
+                  </p>
+                  <p className="text-gray-600 text-sm mt-2">
+                    Injected memories will be available in the context
+                  </p>
+                </div>
               </div>
-            </div>
-          ) : (
-            <>
-              {conversation.messages.map((message) => (
-                <ChatMessage
-                  key={message.id}
-                  message={message}
-                  onPin={handlePinMessage}
-                  onCopy={handleCopyMessage}
-                  onDelete={handleDeleteMessage}
-                />
-              ))}
-              <div ref={messagesEndRef} />
-            </>
-          )}
+            ) : (
+              <div className="flex flex-col">
+                {conversation.messages.map((message) => (
+                  <ChatMessage
+                    key={message.id}
+                    message={message}
+                    onPin={handlePinMessage}
+                    onCopy={handleCopyMessage}
+                    onDelete={handleDeleteMessage}
+                  />
+                ))}
+                <div ref={messagesEndRef} />
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Message Input Area */}
@@ -312,7 +371,7 @@ const Chat: React.FC = () => {
               <textarea
                 value={messageInput}
                 onChange={(e) => setMessageInput(e.target.value)}
-                onKeyPress={handleKeyPress}
+                onKeyDown={handleKeyPress}
                 placeholder="Type your message... (Shift+Enter for new line)"
                 className="
                   w-full px-4 py-3 bg-black border-2 border-deep-teal
@@ -331,10 +390,10 @@ const Chat: React.FC = () => {
               size="lg"
               glow
               onClick={handleSendMessage}
-              disabled={!messageInput.trim()}
+              disabled={!messageInput.trim() || isSending}
             >
               <Send className="w-5 h-5 mr-2" />
-              Send
+              {isSending ? 'Sending...' : 'Send'}
             </CyberButton>
           </div>
           

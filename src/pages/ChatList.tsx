@@ -5,6 +5,7 @@ import { useChatStore } from '../stores/chatStore';
 import { useWorkspaceStore } from '../stores/workspaceStore';
 import { useIntegrationStore } from '../stores/integrationStore';
 import { CyberCard } from '../components/ui';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import type { CognitiveModel } from '../types';
 
 export default function ChatList() {
@@ -13,6 +14,8 @@ export default function ChatList() {
   const { activeWorkspaceId } = useWorkspaceStore();
   const { getConnectedModels } = useIntegrationStore();
   const [connectedModels, setConnectedModels] = useState<CognitiveModel[]>([]);
+  const [deleteConversationId, setDeleteConversationId] = useState<string | null>(null);
+  const [deleteConversationTitle, setDeleteConversationTitle] = useState<string>('');
   
   // Load connected models
   useEffect(() => {
@@ -45,9 +48,32 @@ export default function ChatList() {
     }
   };
 
+  const confirmDeleteConversation = () => {
+    if (deleteConversationId) {
+      deleteConversation(deleteConversationId);
+      setDeleteConversationId(null);
+      setDeleteConversationTitle('');
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-black p-8">
-      {/* Header */}
+    <>
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={!!deleteConversationId}
+        onClose={() => {
+          setDeleteConversationId(null);
+          setDeleteConversationTitle('');
+        }}
+        onConfirm={confirmDeleteConversation}
+        title="Delete Conversation"
+        message={`Delete "${deleteConversationTitle}"?\n\nThis action cannot be undone.`}
+        confirmText="Delete"
+        variant="danger"
+      />
+
+      <div className="min-h-screen bg-black p-8">
+        {/* Header */}
       <div className="mb-8">
         <div className="flex items-center justify-between mb-4">
           <div>
@@ -127,9 +153,8 @@ export default function ChatList() {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (confirm(`Delete "${conversation.title}"? This cannot be undone.`)) {
-                          deleteConversation(conversation.id);
-                        }
+                        setDeleteConversationId(conversation.id);
+                        setDeleteConversationTitle(conversation.title);
                       }}
                       className="p-1.5 hover:bg-error-red/20 rounded transition-colors group"
                       title="Delete conversation"
@@ -143,6 +168,7 @@ export default function ChatList() {
           ))}
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 }
