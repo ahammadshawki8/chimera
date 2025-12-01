@@ -134,8 +134,8 @@ export default function ModelSelect() {
         </div>
       </div>
 
-      {/* No models warning */}
-      {models.length === 0 && (
+      {/* No models warning - only show after loading completes */}
+      {!isLoadingModels && models.length === 0 && (
         <div className="fixed inset-0 flex items-center justify-center z-20 animate-fade-in bg-black/80">
           <div className="bg-black/95 border-2 border-error-red angular-frame px-8 py-6 max-w-md text-center shadow-neon-pink">
             <h2 className="text-error-red font-cyber font-bold text-xl mb-3 uppercase">

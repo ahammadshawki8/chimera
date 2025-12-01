@@ -4,6 +4,7 @@ import { Link2, Search, X, Loader2, FileUp, Upload } from 'lucide-react';
 import { CyberButton } from '../components/ui/CyberButton';
 import { CyberInput } from '../components/ui/CyberInput';
 import { CyberCard } from '../components/ui/CyberCard';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { MemoryCard } from '../components/features/MemoryCard';
 import { useMemoryStore } from '../stores/memoryStore';
 import { useWorkspaceStore } from '../stores/workspaceStore';
@@ -40,6 +41,9 @@ const MemoryBank: React.FC = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [fileSummarize, setFileSummarize] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Delete confirmation state
+  const [deleteMemoryId, setDeleteMemoryId] = useState<string | null>(null);
 
   const handleView = (memoryId: string) => {
     navigate(`/app/memories/${memoryId}`);
@@ -51,8 +55,13 @@ const MemoryBank: React.FC = () => {
   };
 
   const handleDelete = (memoryId: string) => {
-    if (confirm('Are you sure you want to delete this memory?')) {
-      deleteMemory(memoryId);
+    setDeleteMemoryId(memoryId);
+  };
+
+  const confirmDelete = () => {
+    if (deleteMemoryId) {
+      deleteMemory(deleteMemoryId);
+      setDeleteMemoryId(null);
     }
   };
 
@@ -131,8 +140,20 @@ const MemoryBank: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-black text-white p-8">
-      {/* Header */}
+    <>
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={!!deleteMemoryId}
+        onClose={() => setDeleteMemoryId(null)}
+        onConfirm={confirmDelete}
+        title="Delete Memory"
+        message="Are you sure you want to delete this memory? This action cannot be undone."
+        confirmText="Delete"
+        variant="danger"
+      />
+
+      <div className="min-h-screen bg-black text-white p-8">
+        {/* Header */}
       <div className="mb-8">
         <div className="flex items-center justify-between mb-6">
           <div>
@@ -457,7 +478,8 @@ const MemoryBank: React.FC = () => {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 };
 

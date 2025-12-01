@@ -22,11 +22,10 @@ export function LeftSidebar({ onNewWorkspace }: LeftSidebarProps) {
   const { workspaces, activeWorkspaceId, setActiveWorkspace } = useWorkspaceStore();
 
   const handleWorkspaceSwitch = (workspaceId: string) => {
+    // Navigate immediately to the new workspace
+    navigate(`/app/workspace/${workspaceId}`);
+    // Then trigger the transition animation
     setActiveWorkspace(workspaceId);
-    // Navigate to the workspace dashboard after transition starts
-    setTimeout(() => {
-      navigate(`/app/workspace/${workspaceId}`);
-    }, 100);
   };
 
   const navigationItems = [

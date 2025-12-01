@@ -4,6 +4,7 @@ import { Mail, Check, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useInvitationStore } from '../../stores/invitationStore';
 import { useWorkspaceStore } from '../../stores/workspaceStore';
+import { toast } from '../ui/Toast';
 
 export const InvitationInbox: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -38,16 +39,18 @@ export const InvitationInbox: React.FC = () => {
       await acceptInvitation(invitationId);
       // Reload workspaces to include the new one
       await loadWorkspaces();
+      toast.success('Invitation Accepted', 'You now have access to the workspace.');
     } catch (error) {
-      alert('Failed to accept invitation');
+      toast.error('Failed to accept invitation', 'Please try again.');
     }
   };
 
   const handleDecline = async (invitationId: string) => {
     try {
       await declineInvitation(invitationId);
+      toast.info('Invitation Declined');
     } catch (error) {
-      alert('Failed to decline invitation');
+      toast.error('Failed to decline invitation', 'Please try again.');
     }
   };
 
