@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Lock } from 'lucide-react';
+import { Lock, X } from 'lucide-react';
 import { CyberButton, CyberInput, CyberCard, Container } from '../components/ui';
 import { useAuthStore } from '../stores/authStore';
 import { useWorkspaceStore } from '../stores/workspaceStore';
@@ -15,6 +15,7 @@ export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [sessionMessage, setSessionMessage] = useState<string | null>(null);
+  const [showCredentials, setShowCredentials] = useState(true);
 
   // Check if session was invalidated (another user logged in on different tab)
   useEffect(() => {
@@ -83,7 +84,28 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-black text-white flex items-center justify-center p-4">
+    <div className="min-h-screen bg-black text-white flex items-center justify-center p-4 relative">
+      {/* Test Credentials Card - Responsive positioning */}
+      {showCredentials && (
+        <div className="fixed top-4 right-4 md:absolute md:top-4 md:right-4 bg-deep-teal/80 backdrop-blur-sm border border-neon-green/30 rounded-lg p-3 md:p-4 max-w-[200px] md:max-w-xs z-50 shadow-lg shadow-neon-green/10">
+          <button
+            onClick={() => setShowCredentials(false)}
+            className="absolute top-2 right-2 text-gray-400 hover:text-neon-green transition-colors"
+            aria-label="Close credentials card"
+          >
+            <X className="w-4 h-4" />
+          </button>
+          <h3 className="text-neon-green text-xs md:text-sm font-bold mb-2 pr-4">Test Credentials</h3>
+          <div className="text-gray-300 text-[10px] md:text-xs space-y-1">
+            <p><span className="text-gray-500">Email:</span> mumti@gmail.com</p>
+            <p><span className="text-gray-500">Password:</span> mumtiomumtio</p>
+          </div>
+          <p className="text-yellow-400/80 text-[10px] md:text-xs mt-2 md:mt-3 italic">
+            Note: First login may take a moment while the server wakes up.
+          </p>
+        </div>
+      )}
+
       <Container maxWidth="md">
         <div className="text-center mb-8">
           <div className="mb-6 flex justify-center">
